@@ -17,7 +17,7 @@ using Ansible variables.
    elk.rst
    etcd.rst
    glusterfs.rst
-   haproxy.rst
+   
    kafka.rst
    kubernetes.rst
    logstash.rst
