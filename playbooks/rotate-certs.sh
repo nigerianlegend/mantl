@@ -23,7 +23,7 @@ acl_path=rotate-certs
 
 OPTS=$(getopt -n rotate-certs -l log-file:,common-name:,alt-names:,ip-sans:,ttl:,acl-path:,acl-token:,role:,vault-addr:,vault-cacert:,vault-token: -- "$0" "$@")
 if [ $? -ne 0 ]; then
-	  log ERR "Error parsing options."
+    log ERR "Error parsing options."
 fi
 eval set -- "${OPTS}"
 
@@ -36,20 +36,20 @@ while :; do
     fi
     max=$((max-1))
 
-	  case "$1" in
-	      --log-file) log_file="$2"; shift 2 ;;
-	      --common-name)  common_name="$2"; shift 2;;
-	      --alt-names)  alt_names="$2"; shift 2;;
-	      --ip-sans)  ip_sans="$2"; shift 2;;
+    case "$1" in
+        --log-file) log_file="$2"; shift 2 ;;
+        --common-name)  common_name="$2"; shift 2;;
+        --alt-names)  alt_names="$2"; shift 2;;
+        --ip-sans)  ip_sans="$2"; shift 2;;
         --ttl)  ttl="$2"; shift 2;;
-	      --acl-path)  acl_path="$2"; shift 2;;
-	      --acl-token)  acl_token="$2"; shift 2;;
-	      --role)  role="$2"; shift 2;;
-	      --vault-addr)  vault_addr="$2"; shift 2;;
-	      --vault-cacert)  vault_cacert="$2"; shift 2;;
-	      --vault-token)  vault_token="$2"; shift 2;;
-	      --) log INFO "Reached end of options"; shift; break;;
-	  esac
+        --acl-path)  acl_path="$2"; shift 2;;
+        --acl-token)  acl_token="$2"; shift 2;;
+        --role)  role="$2"; shift 2;;
+        --vault-addr)  vault_addr="$2"; shift 2;;
+        --vault-cacert)  vault_cacert="$2"; shift 2;;
+        --vault-token)  vault_token="$2"; shift 2;;
+        --) log INFO "Reached end of options"; shift; break;;
+    esac
 done
 
 log INFO "Parsed options."
@@ -114,8 +114,8 @@ curl_output=$(curl -1sS -X POST \
                    --max-time 20 \
                    -H "X-Vault-Token: ${vault_token}" \
                    -H "Content-Type: application/json"
-                   -d "$json" \
-                   "${vault_addr}/v1/pki/issue" > &1)
+              -d "$json" \
+                 "${vault_addr}/v1/pki/issue" > &1)
 
 # Capture pem cert from vault output
 # Write cert to file
@@ -126,19 +126,19 @@ exit 1
 
 services=("consul" "nginx-consul")
 case "$role" in
-	  worker)
+    worker)
         services=( ${services[@]} "docker")
         ;;
-	  control)
+    control)
         services=( ${services[@]} "docker" "kubelet" "nginx-mantlui" "marathon" "vault")
         ;;
-	  edge)
+    edge)
         services=( ${services[@]} "traefik")
         ;;
-	  kubeworker)
+    kubeworker)
         services=( ${services[@]} "docker" "kubelet")
         ;;
-	  *) log ERR "$(printf "Unsupported role '%s'\n" "$role")" ;;
+    *) log ERR "$(printf "Unsupported role '%s'\n" "$role")" ;;
 esac
 
 for service in "${services[@]}"; do
