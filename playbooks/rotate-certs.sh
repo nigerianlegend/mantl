@@ -108,13 +108,15 @@ log INFO "Getting certificate..."
 
 json=$(printf '{"common_name":"%s","alt_names":"%s","ip_sans":"%s","ttl":"%s"}' \
               "${common_name}" "${alt_names}" "${ip_sans}" "${ttl}")
-curl_output=$(curl -1sS -X POST \
+curl_output=$(curl -1LsS -X POST \
                    --cacert "${vault_cacert}" \
                    --connect-timeout 10 \
                    --max-time 20 \
                    -H "X-Vault-Token: ${vault_token}" \
                    -H "Content-Type: application/json" \
                    -d "$json" \
+                   --cert /etc/pki/mantl/cert \
+                   --key /etc/pki/mantl/key \
                    "${vault_addr}/v1/pki/issue")
 
 # Capture pem cert from vault output
