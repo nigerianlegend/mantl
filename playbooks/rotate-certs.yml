@@ -17,8 +17,6 @@
     - ../roles/vault/defaults/main.yml
   vars:
     ca_common_name: mantl_vault
-    allowed_domains: example.com
-    allow_subdomains: true
 
     vault_addr: "https://vault.service.consul:{{ vault_default_port | default(8200) }}"
 
@@ -92,8 +90,7 @@
       command: >
         vault write {{ vault_command_options }}
         pki/roles/cert-rotation
-        allowed_domains={{ allowed_domains }}
-        allow_subdomains={{ allow_subdomains }}
+        allow_any_name=true
         max_ttl={{ max_ttl | default(ttl) | default('8760h') }}
 
     # - name: write vault policy
