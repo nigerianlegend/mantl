@@ -113,9 +113,9 @@ curl_output=$(curl -1sS -X POST \
                    --connect-timeout 10 \
                    --max-time 20 \
                    -H "X-Vault-Token: ${vault_token}" \
-                   -H "Content-Type: application/json"
-              -d "$json" \
-                 "${vault_addr}/v1/pki/issue" > &1)
+                   -H "Content-Type: application/json" \
+                   -d "$json" \
+                   "${vault_addr}/v1/pki/issue")
 
 # Capture pem cert from vault output
 # Write cert to file
