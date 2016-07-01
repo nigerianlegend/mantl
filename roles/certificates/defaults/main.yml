@@ -6,12 +6,12 @@ locality: ""     # Default: Anytown
 organization: "" # Default: Example Company Inc
 unit: ""         # Default: Operations
 email: ""        # Default: operations@example.com
-location: "{{ ansible_hostname }}" # Openssl's "CN" ("Common Name"). Can't be ""
+location: "{{ inventory_hostname | default(ansible_ssh_hostname) }}" # Openssl's "CN" ("Common Name"). Can't be ""
 # What DNS names will this certificate be valid for?
 # generate-certificates always includes DNS:localhost and IP:127.0.0.1.
 dns:
-  - "{{ inventory_hostname }}"
-  - "{{ inventory_hostname }}.node.consul"
+  - "{{ inventory_hostname | default(ansible_ssh_hostname) }}"
+  - "{{ inventory_hostname | default(ansible_ssh_hostname) }}.node.consul"
   - "*.service.consul"
 # What IP addresses will this certificate be valid for?
 ip:

@@ -1,0 +1,168 @@
+---
+# This playbook uploads your CA into Vault, generates an intermediate CA, deletes
+# your root CA from Vault, and issues certificates to every node signed by the
+# intermediate CA. It then restarts all services that depend on TLS certs in
+# serial, as to not cause major outages. Please run this playbook only during
+# scheduled maintenance.
+#
+# To check on the progress of this script (because it can take a while!), run
+# ansible all -a 'cat /tmp/rotate.log'
+
+- include: "{{ playbook_dir }}/check-requirements.yml"
+
+# Prepare Vault for certificate generation
+- hosts: role=control
+  gather_facts: no
+  vars_files:
+    - ../roles/vault/defaults/main.yml
+  vars:
+    ca_common_name: mantl_vault
+    allowed_domains: example.com
+    allow_subdomains: true
+
+    vault_addr: "https://vault.service.consul:{{ vault_default_port | default(8200) }}"
+
+    ca_key: "{{ lookup('file', playbook_dir + '/../ssl/private/cakey.pem') }}"
+    ca_cert: "{{ lookup('file', playbook_dir + '/../ssl/cacert.pem') }}"
+
+  tasks:
+    # TODO: use TLS auth
+    - name: authenticate with vault
+      run_once: yes
+      changed_when: false
+      command: "vault auth {{ vault_command_options }} {{ vault_root_token }}"
+
+    - name: enable pki secret backend
+      run_once: yes
+      command: "vault mount {{ vault_command_options }} pki"
+      register: enable_pki_backend
+      failed_when: >
+        {{ enable_pki_backend.rc != 0
+        and 'existing mount at pki' not in enable_pki_backend.stderr }}
+      changed_when: "{{ 'existing mount at pki' not in enable_pki_backend.stderr }}"
+
+    - name: set a mount ttl to 10y
+      run_once: yes
+      command: "vault mount-tune {{ vault_command_options }} -max-lease-ttl={{ ca_ttl|default('87600h') }} pki"
+
+    - name: concatenate ca cert, ca private key
+      run_once: yes
+      sudo: yes
+      copy:
+        content: '{{ ca_cert }}\n{{ ca_key }}\n'
+        dest: /tmp/ca-bundle.pem
+        mode: 0600
+
+    - name: upload ca cert to vault
+      run_once: yes
+      sudo: yes
+      command: >
+        vault write {{ vault_command_options }}
+        pki/config/ca
+        pem_bundle=@/tmp/ca-bundle.pem
+
+    - name: delete ca cert
+      run_once: yes
+      sudo: yes
+      file:
+        state: absent
+        path: /tmp/ca-bundle.pem
+
+    # This deletes the root CA from Vault
+        #alt_names={{ dns|join(',') }}
+        #ip_sans={{ ip|join(',') }}
+    - name: create intermediate ca
+      run_once: yes
+      command: >
+        vault write {{ vault_command_options }}
+        pki/intermediate/generate/internal
+        common_name={{ ca_common_name }}
+        ttl={{ ca_ttl|default('87600h') }}
+
+    - name: write urls
+      run_once: yes
+      command: >
+        vault write {{ vault_command_options }}
+        pki/config/urls
+        issuing_certificates={{ vault_addr }}/v1/pki/ca
+        crl_distribution_points={{ vault_addr }}/v1/pki/crl
+
+    - name: write vault role
+      run_once: yes
+      command: >
+        vault write {{ vault_command_options }}
+        pki/roles/cert-rotation
+        allowed_domains={{ allowed_domains }}
+        allow_subdomains={{ allow_subdomains }}
+        max_ttl={{ max_ttl | default(ttl) | default('8760h') }}
+
+    # - name: write vault policy
+    #   run_once: yes
+    #   shell: >
+    #     echo 'path "pki/issue/*" {capabilities = ["create", "update"]}'
+    #     | vault policy-write {{ vault_command_options }} tls-auth -
+
+    # - name: create vault token
+    #   run_once: yes
+    #   # TODO: rely on TLS auth
+    #   register: vault_token_cmd
+    #   command: >
+    #     curl {{ vault_curl_options }}
+    #     -X PUT -H "X-Vault-Token: {{ vault_root_token }}"
+    #     {{ vault_addr }}/v1/auth/token/create/tls-auth
+    #   failed_when: "{{ 'errors' in vault_token_cmd.stdout }}"
+
+    # - debug:
+    #     var: vault_token_cmd
+
+    # - name: extract vault token
+    #   run_once: yes
+    #   set_fact:
+    #     vault_token: "{{ (vault_token_cmd.stdout|from_json)['token'] }}"
+
+
+# Create Consul token, generate certs, restart services, and clean up
+- hosts: all
+  gather_facts: no
+  vars_files:
+    - ../roles/certificates/defaults/main.yml
+    - ../roles/vault/defaults/main.yml
+  vars:
+    vault_addr: "https://vault.service.consul:{{ vault_default_port | default(8200) }}"
+  tasks:
+
+    - name: create consul acl token
+      run_once: yes
+      environment:
+        CONSUL_HTTP_TOKEN: "{{ consul_acl_master_token }}"
+      register: acl_token_cmd
+      command: >
+        consul-cli acl-create
+        --name=rotate-certs
+        --rule=key:{{ kv_lock_path|default('rotate-certs/lock') }}:write
+
+    - name: copy cert rotation script
+      sudo: yes
+      copy:
+        src: "{{ playbook_dir }}/rotate-certs.sh"
+        dest: /tmp/rotate-certs
+        mode: 0700
+
+    - name: run cert rotation script
+      sudo: yes
+      shell:
+        /tmp/rotate-certs
+        --common-name {{ location|default(inventory_hostname) }}
+        --alt-names {{ dns | unique | join(',') }}
+        --ip-sans {{ ip | unique | join(',') }}
+        --ttl {{ ttl | default('8760h') }}
+        --role {{ role }}
+        --acl-token {{ acl_token_cmd.stdout }}
+        --acl-path {{ kv_lock_path|default('rotate-certs/lock') }}
+        --vault-addr {{ vault_addr }}
+        --vault-cacert /etc/pki/CA/ca.cert
+        --vault-token {{ vault_root_token }}
+
+    - name: destroy consul acl token
+      run_once: yes
+      command: "consul-cli acl-destroy {{ acl_token_cmd.stdout }}"
