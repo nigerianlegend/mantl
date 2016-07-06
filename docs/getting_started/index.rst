@@ -56,6 +56,23 @@ common to all providers:
 Step 1: Copy .tf file
 ---------------------
 
+--Community-supported platforms:
+
+.. toctree::
+   :maxdepth:1
+   
+    vsphere.rst
+    softlayer.rst
+    bare-metal.rst
+
+
+
+
+
+
+
+
+
 You will need to copy the .tf file of the platform you are using from
 `mantl/terraform/`_ to the root of the project. For example,
 ``mantl/terraform/openstack-modules.sample.tf`` will need to be copied to
