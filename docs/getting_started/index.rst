@@ -50,8 +50,7 @@ Here are some guides specific to each of the platforms that Mantl supports:
    vagrant.rst
    triton.rst
 
-Community-supported platforms:
-------------------------------
+Community-supported platform:
 .. toctree::
    :maxdepth:1
         
